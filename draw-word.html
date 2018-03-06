@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>写字</title>
+</head>
+<style>
+    #canvas {
+        margin: 0 auto;
+        display: block;
+    }
+
+    .controller {
+        overflow: hidden;
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    .clear-btn {
+        width: 40px;
+        height: 20px;
+        background-color: coral;
+        color: white;
+        border-radius: 5px;
+        line-height: 20px;
+        text-align: center;
+        float: right;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
+
+    .clear-btn:hover {
+        background-color: chocolate;
+    }
+
+    .color-btn {
+        width: 30px;
+        height: 30px;
+        float: left;
+        margin-right: 20px;
+        box-sizing: border-box;
+        border-radius: 5px;
+    }
+
+    .color-btn.selected {
+        border: 2px solid orange;
+    }
+
+    .color-btn:nth-child(1) {
+        background-color: black;
+    }
+
+    .color-btn:nth-child(2) {
+        background-color: red;
+    }
+
+    .color-btn:nth-child(3) {
+        background-color: yellow;
+    }
+
+    .color-btn:nth-child(4) {
+        background-color: green;
+    }
+
+    .color-btn:nth-child(5) {
+        background-color: blue;
+    }
+</style>
+
+<body>
+    <canvas id="canvas">
+        您的浏览器不支持canvas
+    </canvas>
+    <div class="controller">
+        <div class="color-btn selected"></div>
+        <div class="color-btn"></div>
+        <div class="color-btn"></div>
+        <div class="color-btn"></div>
+        <div class="color-btn"></div>
+        <div id="clear-btn" class="clear-btn">清除</div>
+    </div>
+
+</body>
+
+<script src="jquery-1.8.3.min.js"></script>
+<script>
+    var canvasWidth = Math.min(800, $(window).width() - 20);
+    var canvasHeight = canvasWidth;
+    var isMouseDown = false;
+    var lastLoc = {
+        x: 0,
+        y: 0
+    };
+    var lastTimeStamp = 0;
+    var lastLineWidth = -1;
+    var minLineWidth = 1;
+    var maxLineWidth = 30;
+    var minStrokeV = 0.1;
+    var maxStrokeV = 10;
+    var strokeColor;
+
+    var canvas = document.getElementById("canvas");
+    var context = canvas.getContext("2d");
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    drawGrid();
+
+    canvas.onmousedown = function (e) {
+        e.preventDefault();
+        beginPath(e);
+    }
+
+    canvas.onmouseup = function (e) {
+        e.preventDefault();
+        closePath();
+    }
+
+    canvas.onmouseout = function (e) {
+        e.preventDefault();
+        closePath();
+    }
+
+    canvas.onmousemove = function (e) {
+        e.preventDefault();
+        if (isMouseDown) {
+            movePath(e);
+        }
+    }
+
+    canvas.addEventListener("touchstart", function (e) {
+        var touch = e.touches[0];
+        beginPath(touch);
+    })
+    canvas.addEventListener("touchend", function (e) {
+        closePath();
+    })
+    canvas.addEventListener("touchmove", function (e) {
+        var touch = e.touches[0];
+        movePath(touch);
+    })
+
+    $("#clear-btn").click(function () {
+        context.clearRect(0, 0, canvasWidth, canvasHeight);
+        drawGrid();
+    })
+
+    $(".color-btn").click(function () {
+        $(this).siblings().removeClass("selected");
+        $(this).addClass("selected");
+        strokeColor = $(this).css("backgroundColor");
+    })
+
+    function beginPath(point) {
+        isMouseDown = true;
+        var position = windowToCanvas(point.clientX, point.clientY);
+        lastLoc = {
+            x: position.x,
+            y: position.y
+        };
+    }
+
+    function drawDashLine(x1, y1, x2, y2, dashLen) {
+        var dashLen = dashLen === undefined ? 5 : dashLen;
+        var beleling = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        var num = Math.floor(beleling / dashLen);
+        for (var i = 0; i <= num; i++) {
+            context[i % 2 === 0 ? "moveTo" : "lineTo"](x1 + (x2 - x1) / num * i, y1 + (y2 - y1) / num * i);
+        }
+        context.stroke();
+    }
+
+    function closePath() {
+        isMouseDown = false;
+    }
+
+    function movePath(point) {
+        var curLoc = windowToCanvas(point.clientX, point.clientY);
+        context.beginPath();
+        context.moveTo(lastLoc.x, lastLoc.y);
+        context.lineTo(curLoc.x, curLoc.y);
+        var curTimeStamp = new Date().getTime();
+        var s = calcDistance(curLoc, lastLoc);
+        var t = curTimeStamp - lastTimeStamp;
+        var lineWidth = calcLineWidth(s, t);
+
+        context.strokeStyle = strokeColor;
+        context.lineWidth = lineWidth;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.stroke();
+        lastLoc = curLoc;
+        lastTimeStamp = curTimeStamp;
+        lastLineWidth = lineWidth;
+    }
+
+    function calcLineWidth(s, t) {
+        var v = s / t;
+        var resultLineWidth;
+        if (v < minStrokeV) {
+            resultLineWidth = maxLineWidth;
+        } else if (v > maxStrokeV) {
+            resultLineWidth = minLineWidth;
+        } else {
+            resultLineWidth = maxLineWidth - (v - minStrokeV) / (maxStrokeV - minStrokeV) * (maxLineWidth -
+                minLineWidth);
+        }
+        if (lastLineWidth === -1) {
+            return resultLineWidth;
+        } else {
+            return lastLineWidth * (2 / 3) + resultLineWidth * (1 / 3);
+        }
+    }
+
+    function calcDistance(loc1, loc2) {
+        return Math.sqrt((loc1.x - loc2.x) * (loc1.x - loc2.x) + (loc1.y - loc2.y) * (loc1.y - loc2.y))
+    }
+
+    function windowToCanvas(x, y) {
+        var position = canvas.getBoundingClientRect();
+        return {
+            x: Math.round(x - position.left),
+            y: Math.round(y - position.top)
+        }
+    }
+
+    function drawGrid() {
+        context.save();
+        context.strokeStyle = "red";
+        context.beginPath();
+        context.moveTo(3, 3);
+        context.lineTo(3, canvasHeight - 3);
+        context.lineTo(canvasWidth - 3, canvasHeight - 3);
+        context.lineTo(canvasWidth - 3, 3);
+        context.closePath();
+        context.lineWidth = 6;
+        context.stroke();
+
+        context.beginPath();
+        context.lineWidth = 2;
+        drawDashLine(0, 0, canvasWidth, canvasHeight,30);
+        drawDashLine(canvasWidth, 0, 0, canvasHeight,30);
+        drawDashLine(canvasWidth / 2, 0, canvasWidth / 2, canvasHeight,30);
+        drawDashLine(0, canvasHeight / 2, canvasWidth, canvasHeight / 2,30);
+        context.restore();
+    }
+</script>
+
+</html>
